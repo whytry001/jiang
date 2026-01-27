@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A-B 模拟对话系统</title>
+    <!-- 引入Tailwind CSS美化界面 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入Font Awesome图标 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* 自定义滚动条样式 */
+        .chat-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        .chat-container::-webkit-scrollbar-thumb {
+            background-color: #d1d5db;
+            border-radius: 3px;
+        }
+        .chat-container::-webkit-scrollbar-track {
+            background-color: #f3f4f6;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-4 md:p-6">
+    <div class="w-full max-w-3xl bg-white rounded-xl shadow-md overflow-hidden">
+        <!-- 标题区域 -->
+        <div class="bg-blue-600 text-white p-4 md:p-5">
+            <h1 class="text-xl md:text-2xl font-bold">A-B 模拟对话系统</h1>
+            <p class="text-sm md:text-base opacity-90 mt-1">输入消息，B会根据关键词回复</p>
+        </div>
+
+        <!-- 关键词配置区 -->
+        <div class="p-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                <i class="fa-solid fa-cogs mr-2 text-blue-600"></i>关键词配置
+            </h2>
+            <div class="flex flex-col md:flex-row gap-3 mb-3">
+                <input type="text" id="new-keyword" placeholder="输入关键词（如：你好）" 
+                       class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <input type="text" id="new-reply" placeholder="输入对应回复（如：你好呀～）" 
+                       class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <button id="add-keyword" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center">
+                    <i class="fa-solid fa-plus mr-1"></i>添加
+                </button>
+            </div>
+            <!-- 关键词列表 -->
+            <div class="bg-gray-50 rounded-lg p-3 max-h-40 overflow-y-auto">
+                <h3 class="text-sm font-medium text-gray-600 mb-2">当前关键词-回复列表：</h3>
+                <ul id="keyword-list" class="space-y-2">
+                    <!-- 初始关键词会通过JS渲染 -->
+                </ul>
+            </div>
+        </div>
+
+        <!-- 对话区域 -->
+        <div class="chat-container h-96 overflow-y-auto p-4 bg-gray-50">
+            <div id="chat-messages" class="space-y-4">
+                <!-- 初始欢迎消息 -->
+                <div class="flex items-start">
+                    <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white mr-2 flex-shrink-0">B</div>
+                    <div class="bg-white rounded-lg px-4 py-2 shadow-sm max-w-[80%]">
+                        <p class="text-gray-800">你好！我是B，输入消息我会根据关键词回复～</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 输入区域 -->
+        <div class="p-4 border-t border-gray-200">
+            <div class="flex gap-3">
+                <input type="text" id="user-input" placeholder="请输入消息（我是A）..." 
+                       class="flex-1 px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <button id="send-btn" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center">
+                    <i class="fa-solid fa-paper-plane mr-1"></i>发送
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===================== 核心配置区（重点！在这里添加/修改默认关键词和回复） =====================
+        // 初始关键词-回复映射表，你可以直接在这里添加/修改
+        let keywordReplies = {
+            "你好": "你好呀～很高兴见到你 😊",
+            "再见": "再见啦～下次再聊！👋",
+            "谢谢": "不客气～能帮到你我很开心 😜",
+            "吃饭了吗": "还没呢～你要不要请我吃呀？🍚",
+            "天气": "今天天气超棒的！适合出门走走 ☀️"
+        };
+
+        // ===================== DOM元素获取 =====================
+        const chatMessages = document.getElementById('chat-messages');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const newKeyword = document.getElementById('new-keyword');
+        const newReply = document.getElementById('new-reply');
+        const addKeywordBtn = document.getElementById('add-keyword');
+        const keywordList = document.getElementById('keyword-list');
+
+        // ===================== 工具函数 =====================
+        // 渲染关键词列表
+        function renderKeywordList() {
+            keywordList.innerHTML = '';
+            Object.entries(keywordReplies).forEach(([keyword, reply]) => {
+                const li = document.createElement('li');
+                li.className = 'flex justify-between items-center bg-white p-2 rounded-lg shadow-sm';
+                li.innerHTML = `
+                    <span class="text-gray-800"><strong>关键词：</strong>${keyword} → <strong>回复：</strong>${reply}</span>
+                    <button class="delete-keyword text-red-500 hover:text-red-700 transition-colors" data-keyword="${keyword}">
+                        <i class="fa-solid fa-trash"></i> 删除
+                    </button>
+                `;
+                keywordList.appendChild(li);
+            });
+
+            // 绑定删除事件
+            document.querySelectorAll('.delete-keyword').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const keyword = e.target.closest('.delete-keyword').dataset.keyword;
+                    delete keywordReplies[keyword];
+                    renderKeywordList();
+                });
+            });
+        }
+
+        // 添加消息到对话区
+        function addMessage(sender, content) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `flex items-start ${sender === 'A' ? 'justify-end' : ''}`;
+            
+            const avatar = document.createElement('div');
+            avatar.className = `w-8 h-8 rounded-full ${sender === 'A' ? 'bg-green-600' : 'bg-blue-600'} flex items-center justify-center text-white mr-2 ml-2 flex-shrink-0`;
+            avatar.textContent = sender;
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = `bg-white rounded-lg px-4 py-2 shadow-sm max-w-[80%] ${sender === 'A' ? 'rounded-tr-none' : 'rounded-tl-none'}`;
+            contentDiv.innerHTML = `<p class="text-gray-800">${content}</p>`;
+
+            if (sender === 'A') {
+                messageDiv.appendChild(contentDiv);
+                messageDiv.appendChild(avatar);
+            } else {
+                messageDiv.appendChild(avatar);
+                messageDiv.appendChild(contentDiv);
+            }
+
+            chatMessages.appendChild(messageDiv);
+            // 滚动到底部
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // 检测关键词并返回回复
+        function getReply(message) {
+            // 去除空格和标点，转小写，提高匹配率
+            const cleanMessage = message.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '').toLowerCase();
+            
+            // 遍历关键词，匹配则返回对应回复
+            for (const [keyword, reply] of Object.entries(keywordReplies)) {
+                const cleanKeyword = keyword.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '').toLowerCase();
+                if (cleanMessage.includes(cleanKeyword)) {
+                    return reply;
+                }
+            }
+
+            // 无匹配关键词时的默认回复
+            return "我没太理解你的意思呢～可以换个话题试试 😯";
+        }
+
+        // 发送消息处理
+        function sendMessage() {
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            // 添加A的消息
+            addMessage('A', message);
+            // 清空输入框
+            userInput.value = '';
+            userInput.focus();
+
+            // 模拟B思考延迟
+            setTimeout(() => {
+                const reply = getReply(message);
+                addMessage('B', reply);
+            }, 800);
+        }
+
+        // ===================== 事件绑定 =====================
+        // 发送按钮点击
+        sendBtn.addEventListener('click', sendMessage);
+
+        // 回车发送
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        // 添加关键词
+        addKeywordBtn.addEventListener('click', () => {
+            const keyword = newKeyword.value.trim();
+            const reply = newReply.value.trim();
+            if (keyword && reply) {
+                keywordReplies[keyword] = reply;
+                newKeyword.value = '';
+                newReply.value = '';
+                renderKeywordList();
+                newKeyword.focus();
+            } else {
+                alert('关键词和回复都不能为空！');
+            }
+        });
+
+        // 初始化渲染关键词列表
+        renderKeywordList();
+
+        // 初始聚焦输入框
+        userInput.focus();
+    </script>
+</body>
+</html>
