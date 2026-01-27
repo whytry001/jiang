@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>模拟对话网页</title>
+    <style>
+        /* 简单样式，不影响核心功能 */
+        .dialog-box { width: 400px; margin: 20px auto; border: 1px solid #ccc; padding: 10px; }
+        #inputMsg { width: 300px; padding: 5px; }
+        #sendBtn { padding: 5px 10px; }
+        #dialogContent { height: 300px; overflow-y: auto; margin-bottom: 10px; border: 1px solid #eee; padding: 10px; }
+    </style>
+</head>
+<body>
+    <div class="dialog-box">
+        <div id="dialogContent"></div>
+        <input type="text" id="inputMsg" placeholder="请输入关键词...">
+        <button id="sendBtn">发送</button>
+    </div>
+
+    <script>
+        // 1. 全局变量存储对话配置（加载JSON后赋值）
+        let dialogConfig = null;
+
+        // 2. 加载外部JSON配置文件（核心：仅需这一步读取配置，后续改JSON即可）
+        fetch('dialogConfig.json') // 读取同级的配置文件
+            .then(response => response.json())
+            .then(data => {
+                dialogConfig = data;
+                console.log("配置文件加载成功！");
+            })
+            .catch(err => {
+                console.error("配置文件加载失败：", err);
+                // 加载失败时用默认配置，避免网页无法使用
+                dialogConfig = {
+                    dialogRules: [{keywords: ["测试"], reply: "配置加载失败，使用默认回复"}],
+                    defaultReply: "配置加载失败，请检查dialogConfig.json文件！"
+                };
+            });
+
+        // 3. 对话识别核心逻辑（无需改动，仅读取配置文件）
+        function getReply(inputText) {
+            if (!dialogConfig) return "配置未加载完成，请稍等...";
+            
+            // 遍历配置中的关键词规则
+            for (let rule of dialogConfig.dialogRules) {
+                // 判断输入是否包含任意一个关键词（忽略大小写）
+                const hasKeyword = rule.keywords.some(keyword => 
+                    inputText.toLowerCase().includes(keyword.toLowerCase())
+                );
+                if (hasKeyword) {
+                    return rule.reply;
+                }
+            }
+            // 无匹配关键词时返回默认回复
+            return dialogConfig.defaultReply;
+        }
+
+        // 4. 发送按钮点击事件（原有逻辑，无需改动）
+        document.getElementById("sendBtn").addEventListener('click', function() {
+            const inputMsg = document.getElementById("inputMsg").value.trim();
+            if (!inputMsg) return;
+            
+            // 显示用户输入
+            const dialogContent = document.getElementById("dialogContent");
+            dialogContent.innerHTML += `<div>用户：${inputMsg}</div>`;
+            
+            // 获取回复并显示
+            const reply = getReply(inputMsg);
+            dialogContent.innerHTML += `<div>系统：${reply}</div>`;
+            
+            // 清空输入框
+            document.getElementById("inputMsg").value = "";
+            // 滚动到最新消息
+            dialogContent.scrollTop = dialogContent.scrollHeight;
+        });
+
+        // 支持回车发送（可选，不影响核心功能）
+        document.getElementById("inputMsg").addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById("sendBtn").click();
+            }
+        });
+    </script>
+</body>
+</html>
